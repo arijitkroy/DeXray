@@ -10,6 +10,9 @@ from analyzer import APKAnalyzer
 # Load environment keys
 load_dotenv()
 
+# Retrieve key from st.secrets if configured, otherwise fallback to env variable
+gemini_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
+
 # App configuration
 st.set_page_config(
     page_title="DeXray // GenAI APK Malware Analysis Platform",
@@ -221,7 +224,7 @@ if load_anubis:
 
 # Run parsing pipeline based on the active ingestion source
 if st.session_state.analysis_results is None and st.session_state.active_source is not None:
-    analyzer = APKAnalyzer()
+    analyzer = APKAnalyzer(api_key=gemini_key)
     
     if st.session_state.active_source == "teabot":
         with st.spinner("Executing Heuristic Parsing & GenAI Verification on TeaBot..."):

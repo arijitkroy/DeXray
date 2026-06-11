@@ -64,11 +64,22 @@ pip install -r requirements.txt
 ```
 
 ### 3. Setup Gemini API Key
-Create a `.env` file in the root directory and paste your API key from the Google AI Studio console:
-```env
-GEMINI_API_KEY=your_api_key_here
-```
-*(If no API key is specified, DeXray will gracefully load the high-fidelity local heuristic mock interpreter).*
+You can manage your credentials using either standard environment files or Streamlit's secrets management:
+
+*   **Option A: Streamlit Secrets (Recommended for Streamlit Cloud deployment)**
+    Create a `.streamlit/secrets.toml` file in the root directory and add the following entry:
+    ```toml
+    GEMINI_API_KEY = "your_api_key_here"
+    ```
+    *(Note: This file is ignored by git and should not be committed to your repository).*
+
+*   **Option B: Environment Configuration**
+    Create a `.env` file in the root directory:
+    ```env
+    GEMINI_API_KEY=your_api_key_here
+    ```
+
+*(If no key is configured, DeXray will fall back to the offline mock analyzer).*
 
 ### 4. Run the Platform
 Start the local Streamlit dashboard:
