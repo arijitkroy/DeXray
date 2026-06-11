@@ -146,6 +146,7 @@ class APKAnalyzer:
         package_name = "unknown.package"
         anomalies_count = 0
         analysis_mode = "LIVE_DECOMPILATION"
+        raw_dex_strings = ""
 
         # Attempt Androguard extraction
         try:
@@ -190,6 +191,7 @@ class APKAnalyzer:
                     if file_info.filename.endswith(".dex"):
                         dex_files_count += 1
                         dex_content = z.read(file_info.filename)
+                        raw_dex_strings += dex_content.decode('latin1', errors='ignore') + "\n"
                         # Scan dex file for indicators
                         found_snippets, found_anomalies = self._scan_binary_for_markers(dex_content, file_info.filename)
                         suspicious_snippets.extend(found_snippets)
@@ -236,6 +238,7 @@ class APKAnalyzer:
                     for file_info in z.infolist():
                         if file_info.filename.endswith(".dex"):
                             dex_content = z.read(file_info.filename)
+                            raw_dex_strings += dex_content.decode('latin1', errors='ignore') + "\n"
                             found_snippets, found_anomalies = self._scan_binary_for_markers(dex_content, file_info.filename)
                             suspicious_snippets.extend(found_snippets)
                             anomalies_count += found_anomalies
@@ -254,12 +257,18 @@ class APKAnalyzer:
 
         # Consolidate snippets
         snippets_text = "\n\n".join(suspicious_snippets) if suspicious_snippets else "// No explicit malicious Smali snippets detected."
+        behavior_analysis = self._analyze_behavior_patterns(permissions, snippets_text, raw_dex_strings)
 
         # Compute AI assessment (Gemini API vs Heuristic Fallback Engine)
-        ai_result = self._get_ai_interpretation(permissions, snippets_text)
+        ai_result = self._get_ai_interpretation(permissions, snippets_text, behavior_analysis)
 
         # Risk scoring mathematics
-        risk_score = self._calculate_risk_score(permissions, anomalies_count, ai_result["ai_confidence_multiplier"])
+        risk_score = self._calculate_risk_score(
+            permissions,
+            anomalies_count,
+            behavior_analysis["behavior_score"],
+            ai_result["ai_confidence_multiplier"]
+        )
 
         return {
             "app_name": filename or "Extracted APK Stream",
@@ -271,6 +280,8 @@ class APKAnalyzer:
             "behavioral_summary": ai_result["behavioral_summary"],
             "matched_mitre_tactics": ai_result["matched_mitre_tactics"],
             "ai_confidence_multiplier": ai_result["ai_confidence_multiplier"],
+            "behavior_analysis": behavior_analysis,
+            "behavior_score": behavior_analysis["behavior_score"],
             "risk_score": risk_score,
             "analysis_mode": analysis_mode,
             "ai_prompt": ai_result.get("ai_prompt", ""),
@@ -358,9 +369,72 @@ class APKAnalyzer:
 
         return snippets, anomalies
 
-    def _calculate_risk_score(self, permissions, anomalies_count, ai_multiplier):
+    def _analyze_behavior_patterns(self, permissions, smali_snippets, raw_dex_strings):
         """
-        Formula: Risk Score = min(100, (Permission Base Score + Structural Anomalies Count * 10) * AI Multiplier)
+        Analyze permission and dex snippet signals for likely malicious behavior patterns.
+        """
+        def normalize_text(value):
+            if isinstance(value, str):
+                return value.lower()
+            if isinstance(value, (list, tuple, set)):
+                return " ".join(str(item) for item in value).lower()
+            return str(value).lower()
+
+        permission_text = " ".join(
+            item.get("permission", "") for item in permissions
+        ).upper()
+        smali_text = normalize_text(smali_snippets)
+        dex_text = normalize_text(raw_dex_strings)
+
+        sms_interception = any(token in permission_text for token in ["READ_SMS", "RECEIVE_SMS", "SEND_SMS"]) \
+            or "smsmanager" in smali_text \
+            or "smsmanager" in dex_text
+
+        overlay_attack = any(token in permission_text for token in ["SYSTEM_ALERT_WINDOW", "TYPE_APPLICATION_OVERLAY"]) \
+            or any(marker.lower() in smali_text for marker in ["type_application_overlay", "system_alert_window", "windowmanager"]) \
+            or any(marker.lower() in dex_text for marker in ["type_application_overlay", "system_alert_window", "windowmanager"])
+
+        accessibility_abuse = "BIND_ACCESSIBILITY_SERVICE" in permission_text \
+            or "accessibilityservice" in smali_text \
+            or "accessibilityservice" in dex_text \
+            or "performglobalaction" in smali_text \
+            or "dispatchgesture" in smali_text \
+            or "performglobalaction" in dex_text \
+            or "dispatchgesture" in dex_text
+
+        boot_persistence = any(token in permission_text for token in ["BOOT_COMPLETED", "RECEIVE_BOOT_COMPLETED"]) \
+            or "boot_completed" in smali_text \
+            or "receive_boot_completed" in smali_text \
+            or "boot_completed" in dex_text \
+            or "receive_boot_completed" in dex_text
+
+        reflection_usage = any(token.lower() in smali_text for token in ["class.forname", "method.invoke", "getdeclaredmethod"]) \
+            or any(token.lower() in dex_text for token in ["class.forname", "method.invoke", "getdeclaredmethod"])
+
+        dynamic_loading = any(token.lower() in smali_text for token in ["dexclassloader", "pathclassloader", "loadclass"]) \
+            or any(token.lower() in dex_text for token in ["dexclassloader", "pathclassloader", "loadclass"])
+
+        behavior_score = 0
+        behavior_score += 20 if sms_interception else 0
+        behavior_score += 15 if overlay_attack else 0
+        behavior_score += 20 if accessibility_abuse else 0
+        behavior_score += 10 if boot_persistence else 0
+        behavior_score += 10 if reflection_usage else 0
+        behavior_score += 15 if dynamic_loading else 0
+
+        return {
+            "sms_interception": sms_interception,
+            "overlay_attack": overlay_attack,
+            "accessibility_abuse": accessibility_abuse,
+            "boot_persistence": boot_persistence,
+            "reflection_usage": reflection_usage,
+            "dynamic_loading": dynamic_loading,
+            "behavior_score": behavior_score
+        }
+
+    def _calculate_risk_score(self, permissions, anomalies_count, behavior_score, ai_multiplier):
+        """
+        Formula: Risk Score = min(100, (Permission Base Score + Structural Anomalies Count * 10 + Behavior Score) * AI Multiplier)
         Where Permission Base Score is:
         - 15 points for SMS permission
         - 25 points for Accessibility Service
@@ -376,7 +450,7 @@ class APKAnalyzer:
                 permission_score += 25
 
         structural_score = anomalies_count * 10
-        base_score = permission_score + structural_score
+        base_score = permission_score + structural_score + behavior_score
         
         # Apply formula
         final_score = base_score * ai_multiplier
@@ -393,17 +467,23 @@ class APKAnalyzer:
 
         return round(min(100.0, final_score), 2)
 
-    def _get_ai_interpretation(self, permissions, snippets_text):
+    def _get_ai_interpretation(self, permissions, snippets_text, behavior_analysis):
         """
-        Send code and permissions to Gemini. If no API key or on exception, run mock intelligence engine.
+        Send code, permissions, and behavior signals to Gemini. If no API key or on exception, run mock intelligence engine.
         """
         system_prompt = (
-            "Analyze the following isolated Android app code segments and permissions. "
-            "Identify if they exhibit behaviors consistent with banking fraud, credential harvesting, overlay attacks, or SMS interception. "
+            "Analyze the following isolated Android app code segments, permissions, and detected behavior signals. "
+            "Explain the detected attacker capabilities, describe likely malware objectives, "
+            "and map the detected behaviors to MITRE ATT&CK Mobile techniques. "
+            "The behavior analysis is provided as a JSON object such as {\"sms_interception\": true, \"overlay_attack\": true, \"boot_persistence\": false}. "
             "Return your analysis strictly as a JSON object containing three keys: 'behavioral_summary' (a clear string narrative for banking executives), "
             "'matched_mitre_tactics' (a list of strings mapping to MITRE ATT&CK Mobile), and 'ai_confidence_multiplier' (a float between 1.0 and 1.5 based on malicious certainty)."
         )
-        prompt = f"Permissions:\n{json.dumps(permissions, indent=2)}\n\nIsolated Code Snippets:\n{snippets_text}"
+        prompt = (
+            f"Permissions:\n{json.dumps(permissions, indent=2)}\n\n"
+            f"Isolated Code Snippets:\n{snippets_text}\n\n"
+            f"Detected Behavior Analysis:\n{json.dumps(behavior_analysis, indent=2)}"
+        )
 
         if self.client:
             try:

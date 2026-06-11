@@ -320,10 +320,11 @@ else:
     </div>
     """, unsafe_allow_html=True)
     
-    # Create the three primary tabs
-    tab_summary, tab_deep_dive, tab_soc = st.tabs([
+    # Create the four primary tabs
+    tab_summary, tab_deep_dive, tab_behavior, tab_soc = st.tabs([
         ":material/dashboard: Executive Summary", 
         ":material/analytics: Technical Deep-Dive", 
+        ":material/insights: Behavior Analysis",
         ":material/hub: SOC Integration & Alerts"
     ])
     
@@ -403,7 +404,33 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-    # ----------------- TAB 2: TECHNICAL DEEP-DIVE -----------------
+    # ----------------- TAB 2: BEHAVIOR ANALYSIS -----------------
+    with tab_behavior:
+        st.subheader(":material/insights: Behavior Analysis")
+        st.markdown("""
+        <div class="glass-card" style="padding: 1rem; margin-bottom: 1rem; background: rgba(17, 24, 39, 0.85); border: 1px solid #1f2937; border-radius: 12px;">
+            <h3 style="margin: 0 0 0.5rem 0; color: #38bdf8; font-family: 'Fira Code', monospace;">Behavior Analysis Score</h3>
+            <p style="margin: 0; font-size: 2.5rem; font-weight: 800; color: #10b981; font-family: 'Fira Code', monospace;">{res['behavior_score']}</p>
+            <p style="margin-top: 0.75rem; color: #94a3b8;">Higher scores indicate stronger behavior signal overlap with known mobile malware patterns.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        behavior_rows = [
+            ("SMS Interception", res["behavior_analysis"]["sms_interception"]),
+            ("Overlay Attack", res["behavior_analysis"]["overlay_attack"]),
+            ("Accessibility Abuse", res["behavior_analysis"]["accessibility_abuse"]),
+            ("Boot Persistence", res["behavior_analysis"]["boot_persistence"]),
+            ("Reflection Usage", res["behavior_analysis"]["reflection_usage"]),
+            ("Dynamic Loading", res["behavior_analysis"]["dynamic_loading"])
+        ]
+
+        for label, present in behavior_rows:
+            if present:
+                st.success(f"{label}: Detected")
+            else:
+                st.info(f"{label}: Not detected")
+
+    # ----------------- TAB 3: TECHNICAL DEEP-DIVE -----------------
     with tab_deep_dive:
         st.subheader(":material/security: Android Permission Profile")
         
