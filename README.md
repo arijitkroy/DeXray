@@ -13,8 +13,11 @@ DeXray is a unified security intelligence and threat hunting dashboard designed 
   * Integrated with the modern `google-genai` SDK using `gemini-2.5-flash` to perform semantic code analysis on suspicious Smali bytecode blocks.
   * Maps findings to active threat scenarios and identifies critical tactics.
   * Robust exception handling with an offline, high-fidelity local heuristic AI engine to ensure 100% stability.
+* **Behavior Analysis Engine**:
+  * Reuses extracted permissions, suspicious Smali snippets, and DEX/raw string signals to infer attacker behaviors such as SMS interception, overlay abuse, accessibility abuse, boot persistence, reflection usage, and dynamic loading.
+  * Produces a consolidated `behavior_analysis` object and `behavior_score` to support semantic risk assessment.
 * **Mathematical Risk Engine**:
-  * Calculates threat severity score based on a rigorous mathematical formula accounting for base permission values, structural code indicators, and GenAI multiplier certainty.
+  * Calculates threat severity score based on a rigorous mathematical formula accounting for base permission values, structural code indicators, behavior signal strength, and GenAI multiplier certainty.
 * **Premium SOC Command Panel**:
   * Visual interactive **Risk Gauge** scaling dynamically with threat severity.
   * Tab-based navigation detailing executive risk reports, Android permission profiles, service intents, and raw Smali snippets.
@@ -26,7 +29,7 @@ DeXray is a unified security intelligence and threat hunting dashboard designed 
 
 DeXray determines the risk score using the following deterministic formula:
 
-$$\text{Risk Score} = \min(100.0, (\text{Permission Base Score} + \text{Structural Anomalies Score}) \times \mu_{\text{AI}})$$
+$$\text{Risk Score} = \min(100.0, (\text{Permission Base Score} + \text{Structural Anomalies Score} + \text{Behavior Score}) \times \mu_{\text{AI}})$$
 
 Where:
 * **Permission Base Score**:
