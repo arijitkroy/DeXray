@@ -128,4 +128,4 @@ For live demonstrations and mock presentations, DeXray includes a sandbox contai
 
 * **TeaBot (Anatsa)**: Demonstrates SMS interception, accessibility keylogging events, and Telegram API C2 communication channels.
 
-* **Anubis V2**: Highlights dynamic login overlays, boot-persistence loops, and plaintext socket calls.
+* **Anubis V2**: Highlights dynamic login overlays, boot persistence loops, and plaintext socket calls.
