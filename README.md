@@ -107,6 +107,11 @@ Create a `.env` file in the root directory:
 ```env
 GEMINI_API_KEY=your_api_key_here
 ```
+* **Option C: Copy the .env.example to .env and configure your providers:**
+
+```
+cp .env.example .env
+```
 
 *(If no key is configured, DeXray will fall back to the offline mock analyzer).*
 
